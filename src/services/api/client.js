@@ -79,8 +79,14 @@ const finishTrackedRequest = (config) => {
   useUiStore(pinia).stopLoading()
 }
 
+const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+
+if (!apiBaseUrl) {
+  throw new Error('VITE_API_BASE_URL is required. Set it before starting or building the app.')
+}
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },

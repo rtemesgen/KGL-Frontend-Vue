@@ -67,7 +67,7 @@
             <CalculatorIcon class="h-3 w-3" />
           </div>
           <h2 class="m-0 text-[14px] font-semibold tracking-[-0.04em] text-[#22392e]">Input Helper</h2>
-          <span class="ml-auto rounded-[8px] bg-[#eef5eb] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-[#30543e]">Active Field: Qty</span>
+          <span class="ml-auto rounded-[8px] bg-[#eef5eb] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-[#30543e]">Min Qty: 1000kg</span>
         </header>
 
         <div class="space-y-3 px-2 py-2">
@@ -130,6 +130,7 @@ const pricingColumns = [
 const supplierId = ref('')
 const amountPaid = ref('')
 const activeRowId = ref(1)
+const MIN_PURCHASE_QTY_KG = 1000
 
 const makeRow = (index) => ({ id: index + 1, query: '', sku: '', name: '', category: '', unit: 'kg', minQty: 0, qty: '', costPrice: '', sellingPrice: '' })
 const orderRows = reactive(Array.from({ length: 8 }, (_, index) => makeRow(index)))
@@ -188,7 +189,7 @@ const commitRowProduct = (rowId, product) => {
   row.minQty = Number(product.minQty || 0)
   row.costPrice = String(product.costPrice || '')
   row.sellingPrice = String(product.sellingPrice || '')
-  if (!row.qty) row.qty = '1'
+  if (!row.qty) row.qty = String(MIN_PURCHASE_QTY_KG)
 }
 
 const updateGridCell = (rowId, key, value) => {
@@ -255,6 +256,13 @@ const saveAndPrint = async () => {
     toast.error('Add at least one item before saving the receipt.')
     return
   }
+
+  const invalidQtyEntry = orderItems.value.find((item) => Number(item.qty || 0) < MIN_PURCHASE_QTY_KG)
+  if (invalidQtyEntry) {
+    toast.error(`${invalidQtyEntry.name} must be at least ${MIN_PURCHASE_QTY_KG} kg.`)
+    return
+  }
+
   try {
     const record = await procurement.savePurchase({
       branch: props.activeBranch,
