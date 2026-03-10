@@ -39,9 +39,9 @@
               />
             </label>
 
-            <div v-if="openSuggestions && creditCustomerOptions.length" class="absolute z-20 mt-1 w-full overflow-hidden rounded-[12px] border border-[#d8decf] bg-white shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
+            <div v-if="openSuggestions && filteredCreditCustomerOptions.length" class="absolute z-20 mt-1 w-full overflow-hidden rounded-[12px] border border-[#d8decf] bg-white shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
               <button
-                v-for="(option, index) in creditCustomerOptions"
+                v-for="(option, index) in filteredCreditCustomerOptions"
                 :key="option.id"
                 type="button"
                 class="flex w-full items-center justify-between border-b border-[#eef2ea] px-3 py-2 text-left last:border-b-0"
@@ -114,7 +114,7 @@
                 <th class="px-3 py-2">Customer</th>
                 <th class="px-3 py-2">Status</th>
                 <th class="px-3 py-2 text-right">Amount Paid</th>
-                <th class="px-3 py-2 text-right">Balance</th>
+                <th class="px-3 py-2 text-right">Current Balance</th>
                 <th class="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -176,6 +176,12 @@ const creditCustomerOptions = computed(() => salesStore.customers
     balance: Number(customer.accountBalance || 0),
   })))
 
+const filteredCreditCustomerOptions = computed(() => {
+  const query = String(form.customerName || '').trim().toLowerCase()
+  const rows = creditCustomerOptions.value.filter((customer) => !query || customer.name.toLowerCase().includes(query))
+  return rows.slice(0, 6)
+})
+
 const selectedCustomer = computed(() => {
   const name = String(form.customerName || '').trim().toLowerCase()
   return creditCustomerOptions.value.find((customer) => customer.name.toLowerCase() === name) || null
@@ -186,15 +192,27 @@ const noCreditMessage = computed(() => {
   return 'Choose a customer from the outstanding credit list.'
 })
 
+const customerBalanceByName = computed(() => salesStore.customers
+  .filter((customer) => customer.branch === props.activeBranch)
+  .reduce((map, customer) => {
+    map[String(customer.fullName || '').trim().toLowerCase()] = Number(customer.accountBalance || 0)
+    return map
+  }, {}))
+
 const branchRows = computed(() => creditStore.byBranch(props.activeBranch))
 const filteredRows = computed(() => {
   const query = props.search.trim().toLowerCase()
-  return branchRows.value.filter((row) => {
-    const matchesRange = inDateRange(row.date, props.fromDate, props.toDate)
-    const matchesQuery = !query || String(row.name || '').toLowerCase().includes(query)
-    const matchesStatus = props.statusFilter === 'ALL' || props.statusFilter === 'PAID'
-    return matchesRange && matchesQuery && matchesStatus
-  })
+  return branchRows.value
+    .filter((row) => {
+      const matchesRange = inDateRange(row.date, props.fromDate, props.toDate)
+      const matchesQuery = !query || String(row.name || '').toLowerCase().includes(query)
+      const matchesStatus = props.statusFilter === 'ALL' || props.statusFilter === 'PAID'
+      return matchesRange && matchesQuery && matchesStatus
+    })
+    .map((row) => ({
+      ...row,
+      outstandingAmount: Number(row.outstandingAmount || customerBalanceByName.value[String(row.name || '').trim().toLowerCase()] || 0),
+    }))
 })
 
 const sumPaid = (rows) => rows.reduce((sum, row) => sum + Number(row.amountPaid || 0), 0)
@@ -229,7 +247,7 @@ watch(() => props.activeBranch, async (branch, previousBranch) => {
   resetForm()
 })
 
-watch(creditCustomerOptions, (options) => {
+watch(filteredCreditCustomerOptions, (options) => {
   if (!options.length) activeSuggestionIndex.value = 0
   else if (activeSuggestionIndex.value >= options.length) activeSuggestionIndex.value = options.length - 1
 })
@@ -247,14 +265,14 @@ const applySuggestion = (customer) => {
 }
 
 const moveSuggestion = (direction) => {
-  if (!creditCustomerOptions.value.length) return
+  if (!filteredCreditCustomerOptions.value.length) return
   openSuggestions.value = true
-  const total = creditCustomerOptions.value.length
+  const total = filteredCreditCustomerOptions.value.length
   activeSuggestionIndex.value = (activeSuggestionIndex.value + direction + total) % total
 }
 
 const selectActiveSuggestion = () => {
-  const option = creditCustomerOptions.value[activeSuggestionIndex.value]
+  const option = filteredCreditCustomerOptions.value[activeSuggestionIndex.value]
   if (!option) return
   applySuggestion(option)
 }
@@ -295,6 +313,20 @@ const saveCollection = async () => {
     return
   }
 
+  const payment = await salesStore.saveReceivedPayment({
+    branch: props.activeBranch,
+    customerId: selectedCustomer.value.id,
+    customerName: selectedCustomer.value.name,
+    amount,
+    note: form.note,
+    date: form.date,
+  })
+
+  if (!payment) {
+    toast.error('Unable to apply this payment to the customer credit balance.')
+    return
+  }
+
   const result = await creditStore.saveAccountingCollection({
     branch: props.activeBranch,
     date: form.date,
@@ -302,13 +334,19 @@ const saveCollection = async () => {
     amountPaid: amount,
     note: form.note,
   })
+
   if (!result?.ok) {
-    toast.error(result?.error || 'Unable to save collection.')
-    return
+    toast.warning(result?.error || 'Customer balance updated, but accounting collection record could not be saved.')
+  } else if (result?.warning) {
+    toast.warning(result.warning)
   }
-  await salesStore.initialize(props.activeBranch, true)
-  if (result?.warning) toast.warning(result.warning)
-  else toast.success('Collection saved to backend.')
+
+  await Promise.all([
+    salesStore.initialize(props.activeBranch, true),
+    creditStore.initializeAccounting(props.activeBranch, true),
+  ])
+
+  toast.success('Collection saved and customer balance updated.')
   resetForm()
 }
 
@@ -322,12 +360,12 @@ const exportPdf = async () => {
       { key: 'customer', label: 'Customer' },
       { key: 'status', label: 'Status', width: 90 },
       { key: 'amountPaid', label: 'Amount Paid', align: 'right', width: 100 },
-      { key: 'amountDue', label: 'Balance', align: 'right', width: 100 },
+      { key: 'amountDue', label: 'Current Balance', align: 'right', width: 100 },
     ],
     rows: filteredRows.value.map((row) => ({ date: dateLabel(row.date), customer: row.name, status: 'Paid', amountPaid: money(row.amountPaid), amountDue: money(row.outstandingAmount) })),
     totals: {
       'Amount Paid': money(sumPaid(filteredRows.value)),
-      Balance: money(filteredRows.value.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0)),
+      'Current Balance': money(filteredRows.value.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0)),
     },
   })
   toast.success('Credit collection PDF downloaded.')

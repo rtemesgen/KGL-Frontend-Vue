@@ -1,96 +1,85 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { toast } from 'vue3-toastify'
-
-import AccountingPage from '@/pages/Accounting/AccountingPage.vue'
-import AuthPage from '@/pages/Auth/AuthPage.vue'
-import Dashboard from '@/pages/Dashboard/Dashboard.vue'
-import ProcurementPage from '@/pages/Procurement/ProcurementPage.vue'
-import ReportsPage from '@/pages/Reports/ReportsPage.vue'
-import SalesPage from '@/pages/Sales/SalesPage.vue'
-import UsersPage from '@/pages/Users/UsersPage.vue'
-import { pinia } from '@/stores'
+import { canAccessRoute } from '@/router/auth'
 import { useUsersStore } from '@/stores/users'
-import { canAccessRoute } from './auth'
+import AuthPage from '@/pages/Auth/AuthPage.vue'
+import DashboardPage from '@/pages/Dashboard/Dashboard.vue'
+import SalesPage from '@/pages/Sales/SalesPage.vue'
+import ProcurementPage from '@/pages/Procurement/ProcurementPage.vue'
+import AccountingPage from '@/pages/Accounting/AccountingPage.vue'
+import ReportsPage from '@/pages/Reports/ReportsPage.vue'
+import UsersPage from '@/pages/Users/UsersPage.vue'
+
+const routes = [
+  {
+    path: '/auth',
+    name: 'Auth',
+    component: AuthPage,
+    meta: { guestOnly: true },
+  },
+  {
+    path: '/',
+    name: 'Dashboard',
+    component: DashboardPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/sales',
+    name: 'Sales',
+    component: SalesPage,
+    meta: { requiresAuth: true, requiredAccess: 'sales' },
+  },
+  {
+    path: '/procurement',
+    name: 'Procurement',
+    component: ProcurementPage,
+    meta: { requiresAuth: true, requiredAccess: 'procurement' },
+  },
+  {
+    path: '/accounting',
+    name: 'Accounting',
+    component: AccountingPage,
+    meta: { requiresAuth: true, requiredAccess: 'accounting' },
+  },
+  {
+    path: '/reports',
+    name: 'Reports',
+    component: ReportsPage,
+    meta: { requiresAuth: true, requiredAccess: 'reports' },
+  },
+  {
+    path: '/users',
+    name: 'Users',
+    component: UsersPage,
+    meta: { requiresAuth: true, requiredAccess: 'users' },
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/',
+  },
+]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/auth',
-      name: 'Auth',
-      component: AuthPage,
-      meta: { public: true },
-    },
-    {
-      path: '/',
-      name: 'Dashboard',
-      component: Dashboard,
-    },
-    {
-      path: '/sales',
-      name: 'Sales',
-      component: SalesPage,
-      meta: { requiredAccess: 'sales' },
-    },
-    {
-      path: '/procurement',
-      name: 'Procurement',
-      component: ProcurementPage,
-      meta: { requiredAccess: 'procurement' },
-    },
-    {
-      path: '/accounting',
-      name: 'Accounting',
-      component: AccountingPage,
-      meta: { requiredAccess: 'accounting' },
-    },
-    {
-      path: '/users',
-      name: 'Users',
-      component: UsersPage,
-      meta: { requiredAccess: 'users' },
-    },
-    {
-      path: '/reports',
-      name: 'Reports',
-      component: ReportsPage,
-      meta: { requiredAccess: 'reports' },
-    },
-    {
-      path: '/login',
-      redirect: '/auth',
-    },
-    {
-      path: '/register',
-      redirect: '/auth',
-    },
-    {
-      path: '/user',
-      redirect: '/users',
-    },
-  ],
+  routes,
 })
 
 router.beforeEach(async (to) => {
-  const usersStore = useUsersStore(pinia)
+  const users = useUsersStore()
+  await users.hydrateSession()
 
-  if (!usersStore.authInitialized) {
-    await usersStore.hydrateSession()
+  if (to.meta?.guestOnly && users.isAuthenticated) {
+    return { name: users.defaultRouteName }
   }
 
-  if (!usersStore.isAuthenticated && !to.meta?.public) {
+  if (to.meta?.requiresAuth && !users.isAuthenticated) {
     return { name: 'Auth' }
   }
 
-  if (usersStore.isAuthenticated && to.meta?.public) {
-    return { name: usersStore.defaultRouteName }
+  if (to.meta?.requiredAccess && !canAccessRoute(to.meta.requiredAccess, users.allowedCardKeys)) {
+    return { name: users.defaultRouteName }
   }
 
-  const canAccess = canAccessRoute(to.meta?.requiredAccess, usersStore.allowedCardKeys)
-  if (canAccess) return true
-
-  toast.error('Access denied: your role cannot open this page.')
-  return { name: usersStore.defaultRouteName }
+  return true
 })
 
 export default router

@@ -1,18 +1,16 @@
-import './assets/main.css'
-import 'vue3-toastify/dist/index.css'
 import { createApp } from 'vue'
+import { pinia } from '@/stores'
 
 import App from './App.vue'
 import router from './router'
+import './assets/main.css'
 import Vue3Toastify from 'vue3-toastify'
-import { pinia } from './stores'
+import 'vue3-toastify/dist/index.css'
 
 const app = createApp(App)
 
 app.use(pinia)
 app.use(router)
-app.use(Vue3Toastify, {
-  autoClose: 1000,
-})
+app.use(Vue3Toastify, { autoClose: 2500, position: 'top-right' })
 
 app.mount('#app')

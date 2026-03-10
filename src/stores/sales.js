@@ -505,25 +505,30 @@ export const useSalesStore = defineStore('sales', () => {
     return deletedRow
   }
 
-  const saveReceivedPayment = async ({ branch } = {}) => {
+  const saveReceivedPayment = async ({ branch, customerId = '', customerName = '', amount = null, note = '', date = '' } = {}) => {
     const scopedBranch = String(branch || paymentBranch.value || '').trim()
-    const customerId = String(paymentForm.customerId || '').trim()
-    const amount = Number(paymentForm.amount || 0)
-    const targetCustomer = branchCustomers(scopedBranch).find((customer) => customer.id === customerId) || branchCustomers(scopedBranch).find((customer) => normalizeName(customer.fullName) === normalizeName(String(paymentForm.customerName || '').trim()))
+    const resolvedCustomerId = String(customerId || paymentForm.customerId || '').trim()
+    const resolvedCustomerName = String(customerName || paymentForm.customerName || '').trim()
+    const resolvedAmount = Number(amount ?? paymentForm.amount ?? 0)
+    const resolvedNote = String(note || paymentForm.note || '').trim()
+    const paymentDate = date ? `${String(date).slice(0, 10)}T12:00:00` : nextTimestamp()
+    const targetCustomer = branchCustomers(scopedBranch).find((customer) => customer.id === resolvedCustomerId)
+      || branchCustomers(scopedBranch).find((customer) => normalizeName(customer.fullName) === normalizeName(resolvedCustomerName))
 
-    if (!targetCustomer || amount <= 0) return null
+    if (!targetCustomer || resolvedAmount <= 0) return null
 
     const payment = await salesApiService.addCustomerPayment(targetCustomer.id, {
-      amount,
+      amount: resolvedAmount,
       paymentMethod: 'cash',
-      note: String(paymentForm.note || '').trim(),
-      paymentDate: nextTimestamp(),
+      note: resolvedNote,
+      paymentDate,
     })
 
     await initialize(scopedBranch, true)
+    await credits.initializeAccounting?.(scopedBranch, true)
     resetPaymentForm()
     closePaymentModal()
-    return { ...payment, amount }
+    return { ...payment, amount: resolvedAmount, customerId: targetCustomer.id, customerName: targetCustomer.fullName }
   }
 
   const registerTransaction = (branch, transaction) => {
@@ -804,6 +809,7 @@ export const useSalesStore = defineStore('sales', () => {
     soldQtyByBranchSku,
   }
 })
+
 
 
 

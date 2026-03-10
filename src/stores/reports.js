@@ -124,8 +124,9 @@ export const useReportsStore = defineStore('reports', () => {
   const creditRowsBase = computed(() =>
     scopedTransactions.value
       .filter((transaction) => transaction.type === 'credit')
-      .map((transaction) => ({
-        id: transaction.id,
+      .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
+      .map((transaction, index) => ({
+        id: `${transaction.id || 'credit'}-${index}`,
         date: String(transaction.createdAt || '').slice(0, 10),
         name: transaction.customerName || 'Walk-in Customer',
         originalDue: Math.max(Number(transaction.creditAmountDue || transaction.total || 0), 0),

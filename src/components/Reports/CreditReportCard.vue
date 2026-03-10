@@ -23,7 +23,7 @@
       </span>
     </template>
     <template #footer-left>
-      <button class="report-toggle-button" @click="reports.toggleExpanded('credit')">{{ reports.expanded.credit ? 'View less' : 'View more' }}</button>
+      <button v-if="canExpand" class="report-toggle-button" @click="reports.toggleExpanded('credit')">{{ reports.expanded.credit ? 'View less' : 'View more' }}</button>
     </template>
     <template #footer-center>
       <div class="credit-footer-summary" :style="{ gridTemplateColumns: reports.creditFooterTemplate, width: '100%' }">
@@ -48,6 +48,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { formatAmount, formatDateShort } from '@/utils/formatters'
 import ReportCardTable from '@/components/Reports/ReportCardTable.vue'
@@ -55,6 +56,7 @@ import { useReportsStore } from '@/stores/reports'
 
 const reports = useReportsStore()
 const { visibleCategories, creditRows, creditOriginalTotal, creditPaidTotal, creditOutstandingTotal } = storeToRefs(reports)
+const canExpand = computed(() => creditRows.value.length > 3)
 </script>
 
 <style scoped>
