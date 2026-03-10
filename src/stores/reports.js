@@ -121,18 +121,24 @@ export const useReportsStore = defineStore('reports', () => {
     })
   )
 
+  // Credit rows come from customer balances because customer records stay accurate after collections, while sale rows can lag behind.
   const creditRowsBase = computed(() =>
-    scopedTransactions.value
-      .filter((transaction) => transaction.type === 'credit')
-      .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
-      .map((transaction, index) => ({
-        id: `${transaction.id || 'credit'}-${index}`,
-        date: String(transaction.createdAt || '').slice(0, 10),
-        name: transaction.customerName || 'Walk-in Customer',
-        originalDue: Math.max(Number(transaction.creditAmountDue || transaction.total || 0), 0),
-        amountPaid: Math.max(Number(transaction.amountPaid || 0), 0),
-        outstandingAmount: Math.max(Number(transaction.outstandingAmount || 0), 0),
-        status: Number(transaction.outstandingAmount || 0) > 0 ? 'Pending' : 'Cleared',
+    branchesInScope.value
+      .flatMap((branch) => salesStore.customers.filter((customer) => customer.branch === branch))
+      .filter((customer) => {
+        const activityDate = String(customer.updatedAt || customer.createdAt || '').slice(0, 10)
+        const hasCreditActivity = Number(customer.totalCredit || 0) > 0 || Number(customer.totalPaid || 0) > 0 || Number(customer.accountBalance || 0) > 0
+        return hasCreditActivity && inDateRange(activityDate, filters.from, filters.to)
+      })
+      .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
+      .map((customer, index) => ({
+        id: `${customer.id || 'credit-customer'}-${index}`,
+        date: String(customer.updatedAt || customer.createdAt || '').slice(0, 10),
+        name: customer.fullName || 'Walk-in Customer',
+        originalDue: Math.max(Number(customer.totalCredit || 0), 0),
+        amountPaid: Math.max(Number(customer.totalPaid || 0), 0),
+        outstandingAmount: Math.max(Number(customer.accountBalance || 0), 0),
+        status: Number(customer.accountBalance || 0) > 0 ? 'Pending' : 'Cleared',
       }))
   )
   const creditRows = computed(() => {
@@ -166,7 +172,8 @@ export const useReportsStore = defineStore('reports', () => {
   const cash = computed(() => {
     const cashSales = cashSalesTotal.value
     const creditCollections = Number(financial.value.totalCreditCollections ?? creditCollectionTotal.value)
-    const otherIncome = Number(financial.value.totalOtherIncome ?? otherIncomeTotal.value)
+    // Match the cashflow card to the visible Other Income report rows.
+    const otherIncome = otherIncomeTotal.value
 
     return {
       cashSales,

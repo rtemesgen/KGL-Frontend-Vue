@@ -135,6 +135,8 @@ const mapBackendCustomer = (customer) => ({
   accountBalance: Number(customer?.accountBalance || 0),
   totalCredit: Number(customer?.totalCredit || 0),
   totalPaid: Number(customer?.totalPaid || 0),
+  createdAt: String(customer?.createdAt || ''),
+  updatedAt: String(customer?.updatedAt || customer?.createdAt || ''),
 })
 
 export const useSalesStore = defineStore('sales', () => {
@@ -505,6 +507,7 @@ export const useSalesStore = defineStore('sales', () => {
     return deletedRow
   }
 
+  // Accounting and Sales both call through here so one payment updates the backend customer balance and then refreshes branch data.
   const saveReceivedPayment = async ({ branch, customerId = '', customerName = '', amount = null, note = '', date = '' } = {}) => {
     const scopedBranch = String(branch || paymentBranch.value || '').trim()
     const resolvedCustomerId = String(customerId || paymentForm.customerId || '').trim()

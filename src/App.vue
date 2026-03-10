@@ -1,7 +1,10 @@
-<script setup></script>
+<script setup>
+import AppLoadingIndicator from '@/components/Layout/AppLoadingIndicator.vue'
+</script>
 
 <template>
- <router-view />
+  <AppLoadingIndicator />
+  <router-view />
 </template>
 
 <style scoped></style>

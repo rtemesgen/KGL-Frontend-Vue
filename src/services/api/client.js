@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { pinia } from '@/stores'
+import { useUiStore } from '@/stores/ui'
 import { clearAuthToken, getAuthToken, setAuthToken } from './token'
 
 const USERS_STORE_STORAGE_KEY = 'karibu:pinia:users'
@@ -59,9 +61,22 @@ const applyBranchQuery = (config) => {
   if (!branch) return config
   if (!shouldAttachBranch(config)) return config
 
+  // Admin/director requests follow the active UI branch through the query string.
   config.params = config.params || {}
   if (!config.params.branch) config.params.branch = branch
   return config
+}
+
+const beginTrackedRequest = (config) => {
+  if (config?.skipGlobalLoading) return config
+  useUiStore(pinia).startLoading()
+  config.__globalLoadingTracked = true
+  return config
+}
+
+const finishTrackedRequest = (config) => {
+  if (!config?.__globalLoadingTracked) return
+  useUiStore(pinia).stopLoading()
 }
 
 export const apiClient = axios.create({
@@ -72,6 +87,8 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
+  beginTrackedRequest(config)
+
   const token = getAuthToken() || getPersistedUsersToken()
   if (token) {
     setAuthToken(token)
@@ -82,8 +99,13 @@ apiClient.interceptors.request.use((config) => {
 })
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    finishTrackedRequest(response?.config)
+    return response
+  },
   (error) => {
+    finishTrackedRequest(error?.config)
+
     if (error?.response?.status === 401) {
       clearAuthToken()
       syncPersistedUsersAuth({

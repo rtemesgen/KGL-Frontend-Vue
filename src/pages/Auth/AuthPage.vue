@@ -28,8 +28,8 @@
           </div>
 
           <div class="inline-flex rounded-[12px] border border-[#c7d7cc] bg-[#f8faf7] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-            <button class="rounded-[9px] px-4 py-2 text-[12px] font-semibold transition" :class="mode === 'login' ? 'bg-[#30543e] text-white shadow-[0_8px_14px_rgba(48,84,62,0.14)]' : 'text-[#4f6259] hover:bg-white'" @click="mode = 'login'">Login</button>
-            <button class="rounded-[9px] px-4 py-2 text-[12px] font-semibold transition" :class="mode === 'register' ? 'bg-[#30543e] text-white shadow-[0_8px_14px_rgba(48,84,62,0.14)]' : 'text-[#4f6259] hover:bg-white'" @click="mode = 'register'">Register</button>
+            <button class="rounded-[9px] px-4 py-2 text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-60" :class="mode === 'login' ? 'bg-[#30543e] text-white shadow-[0_8px_14px_rgba(48,84,62,0.14)]' : 'text-[#4f6259] hover:bg-white'" :disabled="authBusy" @click="mode = 'login'">Login</button>
+            <button class="rounded-[9px] px-4 py-2 text-[12px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-60" :class="mode === 'register' ? 'bg-[#30543e] text-white shadow-[0_8px_14px_rgba(48,84,62,0.14)]' : 'text-[#4f6259] hover:bg-white'" :disabled="authBusy" @click="mode = 'register'">Register</button>
           </div>
 
           <div class="mt-5">
@@ -102,8 +102,8 @@
               </div>
             </template>
 
-            <button class="flex h-[50px] w-full items-center justify-center rounded-[16px] bg-[linear-gradient(90deg,#30543e,#2a6e51)] text-[15px] font-semibold text-white shadow-[0_16px_28px_rgba(48,84,62,0.18)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_32px_rgba(48,84,62,0.22)]" type="submit">
-              {{ mode === 'login' ? 'Sign in' : 'Submit for approval' }}
+            <button class="flex h-[50px] w-full items-center justify-center rounded-[16px] bg-[linear-gradient(90deg,#30543e,#2a6e51)] text-[15px] font-semibold text-white shadow-[0_16px_28px_rgba(48,84,62,0.18)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_32px_rgba(48,84,62,0.22)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-none" type="submit" :disabled="authBusy">
+              {{ authBusy ? 'Please wait...' : (mode === 'login' ? 'Sign in' : 'Submit for approval') }}
             </button>
           </form>
         </div>
@@ -117,17 +117,20 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import { BRANCH_NAMES } from '@/constants/users'
+import { useUiStore } from '@/stores/ui'
 import { useUsersStore } from '@/stores/users'
 
 const createRegisterForm = () => ({ name: '', email: '', role: 'MANAGER', branch: BRANCH_NAMES[0], password: '', confirmPassword: '' })
 
 const router = useRouter()
 const users = useUsersStore()
+const ui = useUiStore()
 const mode = ref('login')
 const branches = computed(() => BRANCH_NAMES)
 const showLoginPassword = ref(false)
 const showRegisterPassword = ref(false)
 const showRegisterConfirmPassword = ref(false)
+const authBusy = computed(() => ui.isLoading)
 
 const loginForm = reactive({ email: '', password: '' })
 const registerForm = reactive(createRegisterForm())
